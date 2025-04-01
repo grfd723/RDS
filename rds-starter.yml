@@ -1,14 +1,123 @@
-AWSTemplateFormatVersion: "2010-09-09"
-Description: Amazon Relational Database Service (RDS) Instance Template
+# Description of what this change includes
+# Revision number
+# Date
+
+AWSTemplateFormatVersion: '2010-09-09'
+Description: CloudFormation template to create a VPC named VPC-ricboy8193 in us-west-2 with subnets in at least 3 AZs
+
+Parameters:
+  VPCCidrBlock:
+    Type: String
+    Default: 10.0.0.0/16
+    Description: CIDR block for the VPC
+
+  DBPassword:
+    Type: String
+    NoEcho: true
+    Description: The database admin account password
+
+Mappings:
+  RegionMap:
+    us-west-2:
+      AZ1: us-west-2a
+      AZ2: us-west-2b
+      AZ3: us-west-2c
+
 Resources:
+
+  MyVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref VPCCidrBlock
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: VPC-ricboy8193
+
+  Subnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref MyVPC
+      CidrBlock: 10.0.1.0/24
+      AvailabilityZone: !FindInMap [ RegionMap, us-west-2, AZ1 ]
+      Tags:
+        - Key: Name
+          Value: Subnet-AZ1
+
+  Subnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref MyVPC
+      CidrBlock: 10.0.2.0/24
+      AvailabilityZone: !FindInMap [ RegionMap, us-west-2, AZ2 ]
+      Tags:
+        - Key: Name
+          Value: Subnet-AZ2
+
+  Subnet3:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref MyVPC
+      CidrBlock: 10.0.3.0/24
+      AvailabilityZone: !FindInMap [ RegionMap, us-west-2, AZ3 ]
+      Tags:
+        - Key: Name
+          Value: Subnet-AZ3
+
+  RDSSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: Subnet group for RDS instance
+      SubnetIds:
+        - !Ref Subnet1
+        - !Ref Subnet2
+        - !Ref Subnet3
+      Tags:
+        - Key: Name
+          Value: RDS-Subnet-Group
+
+  RdsSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Enable access to RDS instance
+      VpcId: !Ref MyVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 3306
+          ToPort: 3306
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: RDS-SG
+
   RdsInstance:
     Type: AWS::RDS::DBInstance
     Properties:
-      VPCSecurityGroups:
-      - <SECURITY-GROUP-ID>
-      AllocatedStorage: '5'
-      DBInstanceClass: db.t3.micro
       DBInstanceIdentifier: playground-db
+      AllocatedStorage: '20'
+      DBInstanceClass: db.t3.micro
       Engine: MySQL
       MasterUsername: Admin
-      MasterUserPassword: CloudAcademy123!
+      MasterUserPassword: !Ref DBPassword
+      VPCSecurityGroups:
+        - !Ref RdsSecurityGroup
+      DBSubnetGroupName: !Ref RDSSubnetGroup
+      PubliclyAccessible: true
+
+Outputs:
+  VPCId:
+    Description: ID of the created VPC
+    Value: !Ref MyVPC
+  Subnet1Id:
+    Description: ID of Subnet in AZ1
+    Value: !Ref Subnet1
+  Subnet2Id:
+    Description: ID of Subnet in AZ2
+    Value: !Ref Subnet2
+  Subnet3Id:
+    Description: ID of Subnet in AZ3
+    Value: !Ref Subnet3
+  RDSInstanceEndpoint:
+    Description: The endpoint address of the RDS instance
+    Value: !GetAtt RdsInstance.Endpoint.Address
